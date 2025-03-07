@@ -1,350 +1,779 @@
-# Student:
-# login.php
+AndroidManifestfile.xml
 
-<?php
-session_start();
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.medicalbill"
+    xmlns:tools="http://schemas.android.com/tools">
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $username = trim($_POST['username']);
-    $password = trim($_POST['password']);
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Medicalbill"
+        tools:targetApi="31">
 
-    if ($username === "admin" && $password === "password") {
-        $_SESSION['loggedin'] = true;
-        header("Location: enrolment.php");
-        exit();
-    } else {
-        $error = "Invalid username or password";
+        <!-- MainActivity: Entry point of the app -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="Medical Shop Bill">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- BillActivity: Displays the generated bill -->
+        <activity
+            android:name=".BillActivity"
+            android:exported="false"
+            android:label="Generated Bill" />
+
+    </application>
+</manifest>
+
+==================================================================================================================================================================
+
+BillActivity.java
+
+package com.example.medicalbill;
+
+import android.os.Bundle;
+import android.widget.TextView;
+import androidx.appcompat.app.AppCompatActivity;
+
+public class BillActivity extends AppCompatActivity {
+
+    private TextView txtBill;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_bill);
+
+        txtBill = findViewById(R.id.txt_bill);
+
+        // Get data from Intent
+        String customerName = getIntent().getStringExtra("customerName");
+        String address = getIntent().getStringExtra("address");
+        String city = getIntent().getStringExtra("city");
+        String contact = getIntent().getStringExtra("contact");
+        String medicine = getIntent().getStringExtra("medicine");
+        int quantity = getIntent().getIntExtra("quantity", 0);
+        double price = getIntent().getDoubleExtra("price", 0);
+        double totalAmount = getIntent().getDoubleExtra("totalAmount", 0);
+        double gst = getIntent().getDoubleExtra("gst", 0);
+        double finalAmount = getIntent().getDoubleExtra("finalAmount", 0);
+
+        // Display Bill
+        String billText = "Medical Shop Bill\n"
+                + "-------------------------\n"
+                + "Customer: " + customerName + "\n"
+                + "Address: " + address + ", " + city + "\n"
+                + "Contact: " + contact + "\n"
+                + "Medicine: " + medicine + "\n"
+                + "Quantity: " + quantity + "\n"
+                + "Price per Unit: ₹" + price + "\n"
+                + "Total Amount: ₹" + totalAmount + "\n"
+                + "GST (18%): ₹" + gst + "\n"
+                + "Final Amount: ₹" + finalAmount + "\n"
+                + "-------------------------";
+
+        txtBill.setText(billText);
     }
 }
-?>
 
-<body>
-    <form method="post" action="login.php">
-        <h2>Login Page</h2>
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required><br><br>
+=================================================================================================================================================================
 
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required><br><br>
+MainActivity.java
 
-        <input type="submit" value="Login"><br><br>
+package com.example.medicalbill;
 
-        <?php if (isset($error)) { ?>
-            <p class="error"><?php echo htmlspecialchars($error); ?></p>
-        <?php } ?>
-    </form>
-</body>
-</html>
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.Spinner;
+import android.widget.Toast;
+import androidx.appcompat.app.AppCompatActivity;
 
+public class MainActivity extends AppCompatActivity {
 
-==========================================================================================
-# enrolment.php
+    private EditText edtCustomerName, edtAddress, edtContact, edtQuantity, edtPrice;
+    private AutoCompleteTextView autoCity;
+    private Spinner spinnerMedicine;
+    private Button btnGenerateBill;
 
-<?php
-session_start();
-if (!isset($_SESSION['loggedin'])) {
-    header("Location: login.php");
-    exit();
-}
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $name = $_POST['name'];
-    $stream = $_POST['stream'];
-    $hsc_percentage = $_POST['hsc_percentage'];
-    $course = $_POST['course'];
+        // Initialize UI elements
+        edtCustomerName = findViewById(R.id.edt_customer_name);
+        edtAddress = findViewById(R.id.edt_address);
+        edtContact = findViewById(R.id.edt_contact);
+        edtQuantity = findViewById(R.id.edt_quantity);
+        edtPrice = findViewById(R.id.edt_price);
+        autoCity = findViewById(R.id.auto_city);
+        spinnerMedicine = findViewById(R.id.spinner_medicine);
+        btnGenerateBill = findViewById(R.id.btn_generate_bill);
 
-    if (preg_match("/^[A-Za-z\s]+$/", $name) &&
-        is_numeric($hsc_percentage) && $hsc_percentage >= 0 && $hsc_percentage <= 100 &&
-        !empty($stream) && !empty($course)) {
+        // Setup City AutoCompleteTextView
+        String[] cities = {"Surat", "Ahmedabad", "Vadodara", "Rajkot", "Mumbai", "Delhi"};
+        ArrayAdapter<String> cityAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, cities);
+        autoCity.setAdapter(cityAdapter);
 
-        $_SESSION['student'] = [
-            'name' => $name,
-            'stream' => $stream,
-            'hsc_percentage' => $hsc_percentage,
-            'course' => $course
-        ];
+        // Setup Medicine Dropdown
+        String[] medicines = {"Azithromycin", "Amoxicillin", "Lisinopril", "Generic Norvasc", "Generic Synthroid", "Hydrocodone"};
+        ArrayAdapter<String> medicineAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, medicines);
+        spinnerMedicine.setAdapter(medicineAdapter);
 
-        $eligible = false;
-        $status = "Not Eligible";
+        // Generate Bill Button Click Event
+        btnGenerateBill.setOnClickListener(v -> generateBill());
+    }
 
-        if ($course == "Integrated M.Sc.(IT)") {
-            if (($stream == "Commerce" && $hsc_percentage >= 65) ||
-                ($stream == "Science" && $hsc_percentage >= 60)) {
-                $eligible = true;
-                $status = "Eligible";
-            }
-        } else {
-            $status = "Admission only for Integrated M.Sc.(IT).";
+    private void generateBill() {
+        String customerName = edtCustomerName.getText().toString().trim();
+        String address = edtAddress.getText().toString().trim();
+        String city = autoCity.getText().toString().trim();
+        String contact = edtContact.getText().toString().trim();
+        String medicine = spinnerMedicine.getSelectedItem().toString();
+        String quantityStr = edtQuantity.getText().toString().trim();
+        String priceStr = edtPrice.getText().toString().trim();
+
+        // Validation
+        if (customerName.isEmpty() || address.isEmpty() || city.isEmpty() || contact.isEmpty() || quantityStr.isEmpty() || priceStr.isEmpty()) {
+            Toast.makeText(this, "Please fill all details", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!contact.matches("\\d{10}")) {
+            edtContact.setError("Enter a valid 10-digit contact number");
+            return;
         }
 
-        $_SESSION['status'] = $status;
-        header("Location: status.php");
-        exit();
-    } else {
-        $error = "Please fill out all fields correctly.";
+        int quantity = Integer.parseInt(quantityStr);
+        double price = Double.parseDouble(priceStr);
+        double totalAmount = quantity * price;
+        double gst = totalAmount * 0.18; // 18% GST
+        double finalAmount = totalAmount + gst;
+
+        // Send data to BillActivity
+        Intent intent = new Intent(MainActivity.this, BillActivity.class);
+        intent.putExtra("customerName", customerName);
+        intent.putExtra("address", address);
+        intent.putExtra("city", city);
+        intent.putExtra("contact", contact);
+        intent.putExtra("medicine", medicine);
+        intent.putExtra("quantity", quantity);
+        intent.putExtra("price", price);
+        intent.putExtra("totalAmount", totalAmount);
+        intent.putExtra("gst", gst);
+        intent.putExtra("finalAmount", finalAmount);
+        startActivity(intent);
     }
 }
-?>
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Student Enrolment</title>
-</head>
-<body>
-    <h2>Student Enrolment</h2>
-    <form method="post" action="enrolment.php">
-        Student Name: <input type="text" name="name" required pattern="[A-Za-z\s]+"><br>
-        Stream:
-        <select name="stream" required>
-            <option value="">Select Stream</option>
-            <option value="Science">Science</option>
-            <option value="Commerce">Commerce</option>
-            <option value="Arts">Arts</option>
-        </select><br>
-        HSC Percentage: <input type="number" name="hsc_percentage" required min="0" max="100"><br>
-        Course:
-        <select name="course" required>
-            <option value="">Select Course</option>
-            <option value="Integrated M.Sc.(IT)">Integrated M.Sc.(IT)</option>
-            <option value="B.Com">B.Com</option>
-            <option value="B.A">B.A</option>
-        </select><br>
-        <input type="submit" value="submit">
-    </form>
-    <?php
-    if (isset($error)) {
-        echo "<p style='color:red;'>$error</p>";
+==================================================================================================================================================================
+activity_bill.xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/txt_bill"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Bill will be displayed here"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:padding="8dp"/>
+</LinearLayout>
+
+==================================================================================================================================================================
+activity_main.xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <EditText
+            android:id="@+id/edt_customer_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Customer Name"
+            android:inputType="textPersonName"
+            android:padding="10dp"/>
+
+        <EditText
+            android:id="@+id/edt_address"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Address"
+            android:inputType="textPostalAddress"
+            android:padding="10dp"/>
+
+        <AutoCompleteTextView
+            android:id="@+id/auto_city"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="City"
+            android:inputType="text"
+            android:padding="10dp"/>
+
+        <EditText
+            android:id="@+id/edt_contact"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Contact No"
+            android:inputType="phone"
+            android:maxLength="10"
+            android:padding="10dp"/>
+
+        <Spinner
+            android:id="@+id/spinner_medicine"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <EditText
+            android:id="@+id/edt_quantity"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Quantity"
+            android:inputType="number"
+            android:padding="10dp"/>
+
+        <EditText
+            android:id="@+id/edt_price"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Price Per Unit"
+            android:inputType="numberDecimal"
+            android:padding="10dp"/>
+
+        <Button
+            android:id="@+id/btn_generate_bill"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Generate Bill"
+            android:padding="12dp"
+            android:backgroundTint="@android:color/holo_blue_dark"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"/>
+    </LinearLayout>
+</ScrollView>
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+mainactivity.java
+package com.example.employeeraise;
+
+import android.os.Bundle;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+
+    private EditText edtEmployeeName, edtEmail, edtTimeTaken, edtSalary;
+    private AutoCompleteTextView autoCity;
+    private Spinner spinnerDepartment;
+    private RadioGroup genderGroup;
+    private TextView txtResult;
+    private Button btnCalculate;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        // Initialize UI elements
+        edtEmployeeName = findViewById(R.id.edt_employee_name);
+        edtEmail = findViewById(R.id.edt_email);
+        edtTimeTaken = findViewById(R.id.edt_time_taken);
+        edtSalary = findViewById(R.id.edt_salary);
+        autoCity = findViewById(R.id.auto_city);
+        spinnerDepartment = findViewById(R.id.spinner_department);
+        genderGroup = findViewById(R.id.gender_group);
+        txtResult = findViewById(R.id.txt_result);
+        btnCalculate = findViewById(R.id.btn_calculate);
+
+        // Setup City AutoCompleteTextView
+        String[] cities = {"Surat", "Ahmedabad", "Vadodara", "Rajkot", "Mumbai", "Delhi"};
+        ArrayAdapter<String> cityAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, cities);
+        autoCity.setAdapter(cityAdapter);
+
+        // Setup Department Spinner
+        String[] departments = {"HR", "IT", "Finance", "Sales", "Marketing"};
+        ArrayAdapter<String> departmentAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, departments);
+        spinnerDepartment.setAdapter(departmentAdapter);
+
+        // Calculate Button Click Event
+        btnCalculate.setOnClickListener(v -> calculateRaise());
     }
-    ?>
-</body>
-</html>
 
-===========================================================================================
-# status.php
-<?php
-session_start();
-if (!isset($_SESSION['loggedin']) || !isset($_SESSION['student'])) {
-    header("Location: login.php");
-    exit();
+    private void calculateRaise() {
+        String name = edtEmployeeName.getText().toString().trim();
+        String email = edtEmail.getText().toString().trim();
+        String city = autoCity.getText().toString().trim();
+        String department = spinnerDepartment.getSelectedItem().toString();
+        String timeTakenStr = edtTimeTaken.getText().toString().trim();
+        String salaryStr = edtSalary.getText().toString().trim();
+        int selectedGenderId = genderGroup.getCheckedRadioButtonId();
+        RadioButton selectedGender = findViewById(selectedGenderId);
+        String gender = selectedGender != null ? selectedGender.getText().toString() : "Not Specified";
+
+        // Validation
+        if (name.isEmpty() || email.isEmpty() || city.isEmpty() || timeTakenStr.isEmpty() || salaryStr.isEmpty()) {
+            Toast.makeText(this, "Please fill all details", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!email.contains("@")) {
+            edtEmail.setError("Enter a valid email");
+            return;
+        }
+
+        int timeTaken = Integer.parseInt(timeTakenStr);
+        double salary = Double.parseDouble(salaryStr);
+        String efficiency = "";
+        double newSalary = salary;
+
+        // Calculate Raise Based on Efficiency
+        if (timeTaken >= 2 && timeTaken <= 4) {
+            efficiency = "Highly Efficient";
+            newSalary += salary * 0.30; // 30% raise
+        } else if (timeTaken > 4 && timeTaken <= 6) {
+            efficiency = "Average Efficient";
+            newSalary += salary * 0.10; // 10% raise
+        } else if (timeTaken > 6 && timeTaken <= 8) {
+            efficiency = "Needs Training for Efficiency Improvement";
+            newSalary += 2000; // Bonus of 2000
+        } else if (timeTaken > 8) {
+            efficiency = "Poor Efficiency";
+        }
+
+        // Display Result
+        String result = "Employee Name: " + name +
+                "\nGender: " + gender +
+                "\nCity: " + city +
+                "\nDepartment: " + department +
+                "\nTime Taken: " + timeTaken + " Hours" +
+                "\nEfficiency: " + efficiency +
+                "\nUpdated Salary: ₹" + newSalary;
+
+        txtResult.setText(result);
+    }
+}
+==============================================================================================================================================
+activity_main.xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Employee Name -->
+        <EditText
+            android:id="@+id/edt_employee_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Employee Name"
+            android:inputType="textPersonName"
+            android:padding="10dp"/>
+
+        <!-- Email ID -->
+        <EditText
+            android:id="@+id/edt_email"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Email ID"
+            android:inputType="textEmailAddress"
+            android:padding="10dp"
+            android:layout_marginTop="8dp"/>
+
+        <!-- City (AutoComplete) -->
+        <AutoCompleteTextView
+            android:id="@+id/auto_city"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="City"
+            android:inputType="text"
+            android:padding="10dp"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Gender Selection -->
+        <RadioGroup
+            android:id="@+id/gender_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <RadioButton
+                android:id="@+id/radio_male"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Male"/>
+
+            <RadioButton
+                android:id="@+id/radio_female"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Female"/>
+        </RadioGroup>
+
+        <!-- Department (Spinner) -->
+        <Spinner
+            android:id="@+id/spinner_department"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Time Taken (in Hours) -->
+        <EditText
+            android:id="@+id/edt_time_taken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Time Taken (in Hours)"
+            android:inputType="number"
+            android:padding="10dp"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Basic Salary -->
+        <EditText
+            android:id="@+id/edt_salary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Basic Salary"
+            android:inputType="numberDecimal"
+            android:padding="10dp"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Calculate Button -->
+        <Button
+            android:id="@+id/btn_calculate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Calculate Raise"
+            android:backgroundTint="@android:color/holo_blue_dark"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            android:padding="12dp"
+            android:layout_marginTop="16dp"/>
+
+        <!-- Result Display -->
+        <TextView
+            android:id="@+id/txt_result"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:padding="10dp"
+            android:layout_marginTop="16dp"/>
+    </LinearLayout>
+</ScrollView>
+==============================================================================================================================================
+androidmanifest.xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.employeeraise"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Employeeraise"
+        tools:targetApi="31">
+
+        <!-- MainActivity: Entry point of the app -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="Employee Raise">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+datepicker , timeoicker,alert dailog , custom dailog
+DailogActivity.java
+    package com.example.dailogsystem;
+
+import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.content.DialogInterface;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.DatePicker;
+import android.widget.EditText;
+import android.widget.TimePicker;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import java.util.Calendar;
+
+public class MainActivity extends AppCompatActivity {
+
+    EditText txtDate, txtTime;
+    Button btnShowDialog, btnCustomDialog;
+    int mYear, mMonth, mDate, mHour, mMinute;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_dialog);
+        ControlInitialization();
+        EventListener();
+
+        Calendar c = Calendar.getInstance();
+        mYear = c.get(Calendar.YEAR);
+        mMonth = c.get(Calendar.MONTH);
+        mDate = c.get(Calendar.DAY_OF_MONTH);
+
+        mHour = c.get(Calendar.HOUR_OF_DAY);
+        mMinute = c.get(Calendar.MINUTE);
+
+        txtDate.setText(mDate + "/" + (mMonth + 1) + "/" + mYear);
+        txtTime.setText(mHour + ":" + mMinute);
+    }
+
+    private void EventListener() {
+        txtTime.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                TimePickerDialog timePickerDialog = new TimePickerDialog(MainActivity.this,
+                        new TimePickerDialog.OnTimeSetListener() {
+                            @Override
+                            public void onTimeSet(TimePicker timePicker, int hour, int minute) {
+                                txtTime.setText(hour + ":" + minute);
+                            }
+                        }, mHour, mMinute, false);
+                timePickerDialog.show();
+            }
+        });
+
+        txtDate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                DatePickerDialog datePickerDialog = new DatePickerDialog(MainActivity.this,
+                        new DatePickerDialog.OnDateSetListener() {
+                            @Override
+                            public void onDateSet(DatePicker datePicker, int year, int month, int day) {
+                                txtDate.setText(day + "/" + (month + 1) + "/" + year);
+                            }
+                        }, mYear, mMonth, mDate);
+                datePickerDialog.show();
+            }
+        });
+
+        btnShowDialog.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+
+                // Ensure that you have 'info' icon in 'res/drawable/' folder
+                builder.setIcon(R.drawable.info);
+                builder.setTitle("Alert Dialog Example");
+                builder.setMessage("Do you want to exit?");
+                builder.setCancelable(false);
+
+                builder.setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        finish();
+                    }
+                });
+
+                builder.setNegativeButton("No", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        dialogInterface.cancel();
+                    }
+                });
+
+                AlertDialog dialog = builder.create();
+                dialog.show();
+            }
+        });
+
+        btnCustomDialog.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                View customView = getLayoutInflater().inflate(R.layout.custom_dialog, null);
+                builder.setView(customView);
+
+                EditText txtName = customView.findViewById(R.id.txtName);
+
+                builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        sendData(txtName.getText().toString());
+                        dialogInterface.dismiss();
+                    }
+                });
+
+                AlertDialog dialog = builder.create();
+                dialog.show();
+            }
+        });
+    }
+
+    private void sendData(String name) {
+        Toast.makeText(getApplicationContext(), "Name is: " + name, Toast.LENGTH_LONG).show();
+    }
+
+    private void ControlInitialization() {
+        txtDate = findViewById(R.id.txtDate);
+        txtTime = findViewById(R.id.txtTime);
+        btnShowDialog = findViewById(R.id.btnShowDialog);
+        btnCustomDialog = findViewById(R.id.btnCustomDialog);
+    }
 }
 
-$student = $_SESSION['student'];
-$status = $_SESSION['status'];
-?>
+==============================================================================================================================================
+customdailog.xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
 
-<html>
-<head>
-    <title>Admission Status</title>
-</head>
-<body>
-    <h2>Admission Status</h2>
-    <p>Student Name: <?php echo htmlspecialchars($student['name']); ?></p>
-    <p>Stream: <?php echo htmlspecialchars($student['stream']); ?></p>
-    <p>HSC Percentage: <?php echo htmlspecialchars($student['hsc_percentage']); ?></p>
-    <p>Course: <?php echo htmlspecialchars($student['course']); ?></p>
-    <p>Status: <?php echo htmlspecialchars($status); ?></p>
-    <p><a href="enrolment.php">Back to Enrolment</a></p>
-</body>
-</html>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Enter Your Name"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:paddingBottom="8dp"/>
 
-======================================================================================================
+    <EditText
+        android:id="@+id/txtName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:hint="Name" />
 
-# Employee
-# login.php
-<?php
-
-
-session_start();
-$username = "admin";
-$password = "password";
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if ($_POST['username'] === $username && $_POST['password'] === $password) {
-        $_SESSION['loggedin'] = true;
-        header("Location: employee_info.php");
-        exit;
-    } else {
-        $error = "Invalid username or password";
-    }
-}
-?>
-
-<body>
-    <div class="container">
-        <h2>Login</h2>
-        <?php if (!empty($error)): ?>
-            <p class="error"><?= $error ?></p>
-        <?php endif; ?>
-        <form method="post" action="login.php">
-            <label>Username:</label>
-            <input type="text" name="username" required><br><br>
-            <label>Password:</label>
-            <input type="password" name="password" required><br><br>
-            <button type="submit">Login</button>
-        </form>
-    </div>
-</body>
-</html>
-
-=======================================================================================
-
-# employee_info.php
-
-<?php
-// employee_info.php
-
-session_start();
-if (!isset($_SESSION['loggedin'])) {
-    header("Location: login.php");
-    exit;
-}
-
-$errors = [];
-$employee = [];
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Validate Employee Code
-    if (!is_numeric($_POST['emp_code'])) {
-        $errors['emp_code'] = "Employee Code must be numeric.";
-    } else {
-        $employee['emp_code'] = $_POST['emp_code'];
-    }
-
-    // Validate Name
-    if (!ctype_alpha(str_replace(' ', '', $_POST['name']))) {
-        $errors['name'] = "Name should contain only alphabets.";
-    } else {
-        $employee['name'] = $_POST['name'];
-    }
-
-    // Validate Department
-    if (!ctype_alpha(str_replace(' ', '', $_POST['department']))) {
-        $errors['department'] = "Department should contain only alphabets.";
-    } else {
-        $employee['department'] = $_POST['department'];
-    }
-
-    // Validate Designation
-    if (!ctype_alpha(str_replace(' ', '', $_POST['designation']))) {
-        $errors['designation'] = "Designation should contain only alphabets.";
-    } else {
-        $employee['designation'] = $_POST['designation'];
-    }
-
-    // Validate Basic Salary
-    if (!is_numeric($_POST['basic_salary'])) {
-        $errors['basic_salary'] = "Basic Salary must be numeric.";
-    } else {
-        $employee['basic_salary'] = $_POST['basic_salary'];
-    }
-
-    if (empty($errors)) {
-        // Calculate salary components
-        $bs = $employee['basic_salary'];
-        $da = 1.25 * $bs;
-        $ma = 0.1 * $bs;
-        $pf = 0.13 * $bs;
-        $tax = 0.1 * $bs;
-        $hra = 0; // Assuming HRA is not mentioned, setting it to zero
-        $gross_salary = $bs + $hra + $da + $ma;
-        $net_salary = $gross_salary - $pf - $tax;
-
-        // Store details in session
-        $_SESSION['employee'] = [
-            'name' => $employee['name'],
-            'da' => $da,
-            'ma' => $ma,
-            'pf' => $pf,
-            'tax' => $tax,
-            'gross_salary' => $gross_salary,
-            'net_salary' => $net_salary,
-        ];
-
-        header("Location: view_salary.php");
-        exit;
-    }
-}
-?>
-    <div class="container">
-        <h2>Employee Information</h2>
-        <form method="post" action="employee_info.php">
-            <label>Employee Code:</label><br>
-            <input type="text" name="emp_code" value="<?= htmlspecialchars($_POST['emp_code'] ?? '') ?>"><br>
-            <?php if (isset($errors['emp_code'])): ?><p class="error"><?= $errors['emp_code'] ?></p><?php endif; ?><br>
-
-            <label>Name:</label><br>
-            <input type="text" name="name" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>"><br>
-            <?php if (isset($errors['name'])): ?><p class="error"><?= $errors['name'] ?></p><?php endif; ?><br>
-
-            <label>Department:</label><br>
-            <input type="text" name="department" value="<?= htmlspecialchars($_POST['department'] ?? '') ?>"><br>
-            <?php if (isset($errors['department'])): ?><p class="error"><?= $errors['department'] ?></p><?php endif; ?><br>
-
-            <label>Designation:</label><br>
-            <input type="text" name="designation" value="<?= htmlspecialchars($_POST['designation'] ?? '') ?>"><br>
-            <?php if (isset($errors['designation'])): ?><p class="error"><?= $errors['designation'] ?></p><?php endif; ?><br>
-
-            <label>Basic Salary:</label><br>
-            <input type="text" name="basic_salary" value="<?= htmlspecialchars($_POST['basic_salary'] ?? '') ?>"><br>
-            <?php if (isset($errors['basic_salary'])): ?><p class="error"><?= $errors['basic_salary'] ?></p><?php endif; ?><br>
-
-            <br><button type="submit">Submit</button>
-        </form>
-    </div>
-</body>
-</html>
+    <Button
+        android:id="@+id/btnOk"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="OK"
+        android:backgroundTint="@color/black"
+        android:textColor="@android:color/white"
+        android:textStyle="bold"
+        android:padding="10dp"
+        android:layout_marginTop="12dp"/>
+</LinearLayout>
 
 
-=============================================================================================
-# view_salary.php
+==============================================================================================================================================
+activity_dailog.xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
 
-<?php
+    <!-- Date Picker -->
+    <EditText
+        android:id="@+id/txtDate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Select Date"
+        android:focusable="false"
+        android:drawableEnd="@android:drawable/ic_menu_today"
+        android:padding="10dp"/>
 
-session_start();
-if (!isset($_SESSION['loggedin']) || !isset($_SESSION['employee'])) {
-    header("Location: login.php");
-    exit;
-}
+    <!-- Time Picker -->
+    <EditText
+        android:id="@+id/txtTime"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Select Time"
+        android:focusable="false"
+        android:drawableEnd="@android:drawable/ic_menu_recent_history"
+        android:padding="10dp"
+        android:layout_marginTop="8dp"/>
 
-$employee = $_SESSION['employee'];
-?>
-    <body>
-        <div class="container">
-            <h2>Salary Details</h2>
-            <table>
-                <tr>
-                    <th>Name</th>
-                    <td><?= $employee['name'] ?></td>
-                </tr>
-                <tr>
-                    <th>DA</th>
-                    <td><?= $employee['da'] ?></td>
-                </tr>
-                <tr>
-                    <th>MA</th>
-                    <td><?= $employee['ma'] ?></td>
-                </tr>
-                <tr>
-                    <th>PF</th>
-                    <td><?= $employee['pf'] ?></td>
-                </tr>
-                <tr>
-                    <th>Tax</th>
-                    <td><?= $employee['tax'] ?></td>
-                </tr>
-                <tr>
-                    <th>Gross Salary</th>
-                    <td><?= $employee['gross_salary'] ?></td>
-                </tr>
-                <tr>
-                    <th>Net Salary</th>
-                    <td><?= $employee['net_salary'] ?></td>
-                </tr>
-            </table>
-        </div>
-    </body>
-</html>
+    <!-- Alert Dialog Button -->
+    <Button
+        android:id="@+id/btnShowDialog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Show Alert Dialog"
+        android:backgroundTint="@android:color/holo_blue_dark"
+        android:textColor="@android:color/white"
+        android:textStyle="bold"
+        android:padding="12dp"
+        android:layout_marginTop="16dp"/>
+
+    <!-- Custom Dialog Button -->
+    <Button
+        android:id="@+id/btnCustomDialog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Show Custom Dialog"
+        android:backgroundTint="@android:color/holo_green_dark"
+        android:textColor="@android:color/white"
+        android:textStyle="bold"
+        android:padding="12dp"
+        android:layout_marginTop="8dp"/>
+</LinearLayout>
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+
+
+
+
+
+
+
+
 
 
 
